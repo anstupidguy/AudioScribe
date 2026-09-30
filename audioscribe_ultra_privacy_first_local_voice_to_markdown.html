@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AudioScribe Ultra - Local Voice-to-Markdown & Action Item Extractor</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        studio: {
+                            bg: '#0B0F19',
+                            card: '#111827',
+                            border: 'rgba(255, 255, 255, 0.08)',
+                            panel: '#1E293B',
+                            accent: '#8B5CF6',
+                            cyan: '#06B6D4',
+                            emerald: '#10B981'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Fira Code', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts & Lucide Icons CDN -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0B0F19;
+            color: #F3F4F6;
+            min-height: 100vh;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0B0F19;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1E293B;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
+        }
+
+        /* Glassmorphic UI Cards */
+        .glass-card {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-panel-accent {
+            background: rgba(139, 92, 246, 0.06);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+
+        /* Pulsing Recording Indicator */
+        @keyframes pulse-record {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.1); }
+        }
+        .recording-pulse {
+            animation: pulse-record 1.5s infinite ease-in-out;
+        }
+
+        /* Waveform Canvas Overlay */
+        .waveform-canvas {
+            background: radial-gradient(circle at center, #131B2E 0%, #0B0F19 100%);
+        }
+
+        /* Tab Switcher Styling */
+        .tab-btn.active {
+            color: #A78BFA;
+            background: rgba(139, 92, 246, 0.15);
+            border-color: rgba(139, 92, 246, 0.4);
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen justify-between selection:bg-violet-600 selection:text-white">
+
+    <header class="sticky top-0 z-40 glass-card border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            
+            <!-- Brand Logo & Local Privacy Badge -->
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="resetAppToDefault()">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 via-indigo-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                    <i data-lucide="mic" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <h1 class="font-bold text-lg tracking-tight text-white">AudioScribe <span class="text-violet-400 font-extrabold">Ultra</span></h1>
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold">
+                            <i data-lucide="shield-check" class="w-3 h-3"></i> 🔒 100% On-Device & Zero Server Logs
+                        </span>
+                    </div>
+                    <p class="text-[10px] text-slate-400">Local Voice-to-Markdown • Web Audio Waveforms • NLP Extractor</p>
+                </div>
+            </div>
+
+            <!-- Top Action Controls -->
+            <div class="flex items-center space-x-2">
+                <button onclick="loadDemoMeeting()" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
+                    <i data-lucide="zap" class="w-4 h-4 text-cyan-400"></i>
+                    <span>⚡ Load Demo Meeting</span>
+                </button>
+
+                <button onclick="openGuideModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5">
+                    <i data-lucide="help-circle" class="w-4 h-4 text-amber-400"></i>
+                    <span class="hidden sm:inline">Voice Commands</span>
+                </button>
+
+                <!-- Export Options Dropdown -->
+                <div class="relative group">
+                    <button class="px-3.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-lg shadow-violet-600/20">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span>Export</span>
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 opacity-70"></i>
+                    </button>
+                    <div class="absolute right-0 mt-2 w-48 glass-card bg-slate-900 border border-slate-800 rounded-xl shadow-2xl hidden group-hover:block z-50 py-1.5">
+                        <button onclick="exportAsMarkdown()" class="w-full px-3.5 py-2 text-left text-xs text-slate-200 hover:bg-violet-600/20 hover:text-violet-300 flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-4 h-4 text-violet-400"></i> Download Markdown (.md)
+                        </button>
+                        <button onclick="copyMarkdownToClipboard()" class="w-full px-3.5 py-2 text-left text-xs text-slate-200 hover:bg-cyan-600/20 hover:text-cyan-300 flex items-center gap-2">
+                            <i data-lucide="copy" class="w-4 h-4 text-cyan-400"></i> Copy Raw Markdown
+                        </button>
+                        <button onclick="exportSessionJSON()" class="w-full px-3.5 py-2 text-left text-xs text-slate-200 hover:bg-emerald-600/20 hover:text-emerald-300 flex items-center gap-2">
+                            <i data-lucide="database" class="w-4 h-4 text-emerald-400"></i> Backup Session (.json)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-grow">
+
+        <!-- Top Studio Audio Deck (Waveform Visualizer & Recording Controls) -->
+        <section class="glass-card rounded-2xl p-5 border border-slate-800/80 space-y-4 shadow-xl relative overflow-hidden">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-800/80">
+                
+                <!-- Audio Input Mode Toggle -->
+                <div class="flex items-center space-x-2 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+                    <button id="btnModeMic" onclick="switchAudioInputMode('mic')" class="px-3.5 py-1.5 rounded-lg bg-violet-600 text-white flex items-center gap-1.5 transition">
+                        <i data-lucide="mic" class="w-3.5 h-3.5"></i> Live Microphone
+                    </button>
+                    <button id="btnModeFile" onclick="switchAudioInputMode('file')" class="px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
+                        <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i> Audio File Upload
+                    </button>
+                </div>
+
+                <!-- Speech Language Selector & Live Command Tag -->
+                <div class="flex items-center space-x-3 text-xs">
+                    <div class="flex items-center space-x-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-slate-300">
+                        <i data-lucide="languages" class="w-4 h-4 text-violet-400"></i>
+                        <span class="text-[11px] text-slate-400 font-medium">Lang:</span>
+                        <select id="languageSelect" class="bg-transparent text-xs font-semibold text-violet-300 focus:outline-none cursor-pointer">
+                            <option value="en-US" class="bg-slate-900 text-slate-200">English (US)</option>
+                            <option value="es-ES" class="bg-slate-900 text-slate-200">Spanish (ES)</option>
+                            <option value="fr-FR" class="bg-slate-900 text-slate-200">French (FR)</option>
+                            <option value="de-DE" class="bg-slate-900 text-slate-200">German (DE)</option>
+                            <option value="zh-CN" class="bg-slate-900 text-slate-200">Chinese (ZH)</option>
+                            <option value="ja-JP" class="bg-slate-900 text-slate-200">Japanese (JA)</option>
+                        </select>
+                    </div>
+
+                    <div id="recordingStatusBadge" class="hidden items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 font-semibold text-xs">
+                        <span class="w-2.5 h-2.5 rounded-full bg-rose-500 recording-pulse"></span>
+                        <span id="recordingTimerText">00:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="micInputView" class="space-y-4">
+                <!-- Waveform & Oscilloscope Canvas Container -->
+                <div class="relative w-full h-32 rounded-xl overflow-hidden border border-slate-800/80 bg-slate-950 flex items-center justify-center">
+                    <canvas id="visualizerCanvas" class="w-full h-full waveform-canvas block"></canvas>
+
+                    <!-- Overlay Live Speech Interim Preview -->
+                    <div id="interimSpeechBox" class="absolute bottom-2 left-4 right-4 p-2 rounded-lg bg-slate-900/80 backdrop-blur border border-slate-800 text-xs font-mono text-cyan-300 truncate hidden">
+                        <i data-lucide="radio" class="w-3.5 h-3.5 inline text-cyan-400 mr-1 animate-pulse"></i>
+                        <span id="interimSpeechText">Listening...</span>
+                    </div>
+                </div>
+
+                <!-- Live Mic Control Toolbar -->
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-center space-x-3">
+                        <button id="btnToggleRecord" onclick="toggleMicrophoneRecording()" class="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs transition flex items-center gap-2 shadow-lg shadow-violet-600/30">
+                            <i data-lucide="mic" class="w-4 h-4"></i>
+                            <span id="btnRecordText">Start Recording</span>
+                        </button>
+
+                        <button onclick="insertManualMarker()" class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5">
+                            <i data-lucide="bookmark" class="w-4 h-4 text-amber-400"></i> Add Bookmark
+                        </button>
+                    </div>
+
+                    <div class="text-xs text-slate-400 flex items-center gap-2">
+                        <span class="hidden md:inline">Voice Commands enabled: say <code class="text-violet-300 bg-slate-900 px-1.5 py-0.5 rounded">"Action Item..."</code> or <code class="text-cyan-300 bg-slate-900 px-1.5 py-0.5 rounded">"Decision..."</code></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audio File Dropzone View (Hidden by default) -->
+            <div id="fileInputView" class="hidden space-y-4">
+                <div id="dropzone" onclick="document.getElementById('audioFileInput').click()" class="w-full h-32 rounded-xl border-2 border-dashed border-slate-800 hover:border-violet-500/50 bg-slate-950 flex flex-col items-center justify-center cursor-pointer transition p-4 text-center">
+                    <i data-lucide="file-audio" class="w-8 h-8 text-violet-400 mb-2"></i>
+                    <p class="text-xs font-semibold text-slate-200">Click or drag & drop audio file (MP3, WAV, M4A, OGG, WEBM)</p>
+                    <p class="text-[11px] text-slate-500 mt-1">Processed 100% locally using HTML5 Web Audio API</p>
+                    <input type="file" id="audioFileInput" accept="audio/*" class="hidden" onchange="handleAudioFileUpload(event)">
+                </div>
+
+                <!-- Interactive Player Controls (Shows when file is loaded) -->
+                <div id="audioPlayerDeck" class="hidden space-y-3 p-3.5 bg-slate-950 rounded-xl border border-slate-800">
+                    <!-- Interactive Waveform Canvas with Scrubber Cursor -->
+                    <div class="relative w-full h-16 bg-slate-900 rounded-lg overflow-hidden cursor-pointer" onclick="seekAudioFromWaveform(event)">
+                        <canvas id="fileWaveformCanvas" class="w-full h-full"></canvas>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div class="flex items-center space-x-2">
+                            <button onclick="toggleAudioPlayback()" id="btnPlayPauseFile" class="p-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-bold transition">
+                                <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                            </button>
+                            <button onclick="seekAudioRelative(-5)" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition" title="Skip back 5s">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button onclick="seekAudioRelative(5)" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition" title="Skip forward 5s">
+                                <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <span id="playerTimeLabel" class="font-mono text-xs text-slate-300 ml-2">00:00 / 00:00</span>
+                        </div>
+
+                        <div class="flex items-center space-x-3">
+                            <div class="flex items-center space-x-1 font-mono text-[11px] text-slate-400">
+                                <span>Speed:</span>
+                                <button onclick="setPlaybackSpeed(0.75)" class="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800">0.75x</button>
+                                <button onclick="setPlaybackSpeed(1.0)" class="px-1.5 py-0.5 rounded bg-violet-600/30 text-violet-300 border border-violet-500/40">1.0x</button>
+                                <button onclick="setPlaybackSpeed(1.25)" class="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800">1.25x</button>
+                                <button onclick="setPlaybackSpeed(1.5)" class="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800">1.5x</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left Column: Interactive Transcript & Speaker Feed (7 Cols) -->
+            <div class="lg:col-span-7 glass-card rounded-2xl p-5 border border-slate-800 space-y-4 flex flex-col justify-between">
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="list-ordered" class="w-4 h-4 text-violet-400"></i>
+                            <h2 class="font-bold text-xs uppercase tracking-wider text-white">Timestamped Speech Feed</h2>
+                            <span id="segmentCountBadge" class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-mono">0 segments</span>
+                        </div>
+
+                        <div class="flex items-center space-x-2 text-xs">
+                            <button onclick="addEmptySegment()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] transition flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3 text-emerald-400"></i> Add Segment
+                            </button>
+                            <button onclick="clearTranscriptFeed()" class="text-[11px] text-slate-500 hover:text-rose-400 transition">Clear</button>
+                        </div>
+                    </div>
+
+                    <!-- Transcript Feed Container -->
+                    <div id="transcriptContainer" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Speaker Settings Footer -->
+                <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+                    <span class="flex items-center gap-1.5"><i data-lucide="user-check" class="w-3.5 h-3.5 text-cyan-400"></i> Active Speaker:</span>
+                    <input type="text" id="activeSpeakerInput" value="Speaker 1" class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs font-semibold text-cyan-300 focus:outline-none focus:border-cyan-500 w-32">
+                </div>
+            </div>
+
+            <div class="lg:col-span-5 space-y-6">
+
+                <!-- Studio Tab Switcher (Insights vs Rendered Markdown vs Raw Code) -->
+                <div class="glass-card rounded-2xl p-4 border border-slate-800 space-y-4">
+                    <div class="flex space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold overflow-x-auto">
+                        <button onclick="switchRightTab('tab-insights')" id="right-tab-insights" class="tab-btn active px-3 py-1.5 rounded-lg text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+                            <i data-lucide="brain" class="w-3.5 h-3.5 text-violet-400"></i> NLP Insights
+                        </button>
+                        <button onclick="switchRightTab('tab-preview')" id="right-tab-preview" class="tab-btn px-3 py-1.5 rounded-lg text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+                            <i data-lucide="eye" class="w-3.5 h-3.5 text-cyan-400"></i> Rendered MD
+                        </button>
+                        <button onclick="switchRightTab('tab-raw')" id="right-tab-raw" class="tab-btn px-3 py-1.5 rounded-lg text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+                            <i data-lucide="file-code" class="w-3.5 h-3.5 text-emerald-400"></i> Raw Code
+                        </button>
+                    </div>
+
+                    <!-- TAB 1: LOCAL NLP AUTOMATED EXTRACTIONS -->
+                    <div id="tab-insights" class="space-y-4">
+                        <!-- Action Items Section -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <label class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                                    <i data-lucide="check-square" class="w-4 h-4"></i> Extracted Action Items
+                                </label>
+                                <span id="actionCountBadge" class="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full">0 tasks</span>
+                            </div>
+                            <div id="actionItemsContainer" class="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                                <!-- Dynamic tasks -->
+                            </div>
+                        </div>
+
+                        <!-- Key Decisions Section -->
+                        <div class="space-y-2 pt-2 border-t border-slate-800/80">
+                            <label class="text-xs font-bold text-violet-400 flex items-center gap-1.5">
+                                <i data-lucide="lightbulb" class="w-4 h-4"></i> Key Decisions & Agreements
+                            </label>
+                            <div id="decisionsContainer" class="space-y-1.5 max-h-[120px] overflow-y-auto text-xs">
+                                <!-- Dynamic decisions -->
+                            </div>
+                        </div>
+
+                        <!-- Open Questions Section -->
+                        <div class="space-y-2 pt-2 border-t border-slate-800/80">
+                            <label class="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
+                                <i data-lucide="help-circle" class="w-4 h-4"></i> Open Questions & Follow-ups
+                            </label>
+                            <div id="questionsContainer" class="space-y-1.5 max-h-[100px] overflow-y-auto text-xs">
+                                <!-- Dynamic questions -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: RENDERED GFM MARKDOWN PREVIEW -->
+                    <div id="tab-preview" class="hidden space-y-3">
+                        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs leading-relaxed space-y-3 text-slate-200 max-h-[460px] overflow-y-auto font-sans" id="renderedMarkdownBox">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: RAW MARKDOWN CODE EDITOR -->
+                    <div id="tab-raw" class="hidden space-y-3">
+                        <div class="flex justify-between items-center text-xs text-slate-400">
+                            <span id="markdownStatsLabel" class="font-mono text-[11px]">0 words • 0 chars</span>
+                            <button onclick="copyMarkdownToClipboard()" class="text-violet-400 hover:text-violet-300 font-semibold flex items-center gap-1">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy Text
+                            </button>
+                        </div>
+                        <textarea id="rawMarkdownTextArea" oninput="manualMarkdownEdit()" rows="18" class="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-violet-500 leading-relaxed"></textarea>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Voice Commands & Tutorial Modal -->
+    <div id="guideModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="glass-card max-w-xl w-full rounded-2xl p-6 border border-slate-800 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeGuideModal()" class="absolute top-4 right-4 p-1 rounded-lg text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/30 text-violet-400 flex items-center justify-center">
+                    <i data-lucide="mic" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold text-white">Voice Commands & Feature Guide</h2>
+                    <p class="text-xs text-slate-400">Control note-taking with natural spoken commands.</p>
+                </div>
+            </div>
+
+            <div class="space-y-3 text-xs text-slate-300 leading-relaxed border-t border-slate-800 pt-3">
+                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                    <h4 class="font-bold text-emerald-400">1. Action Items & Tasks</h4>
+                    <p class="text-slate-400">Say <code class="text-emerald-300 bg-slate-900 px-1 py-0.5 rounded">"Action item: email design team by 3pm"</code> or speak words like "need to", "assigned to", or "todo". The local engine automatically converts them to interactive checkboxes.</p>
+                </div>
+
+                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                    <h4 class="font-bold text-violet-400">2. Key Decisions</h4>
+                    <p class="text-slate-400">Say <code class="text-violet-300 bg-slate-900 px-1 py-0.5 rounded">"Decision: launch on Friday"</code> or use words like "agreed", "approved", or "concluded".</p>
+                </div>
+
+                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                    <h4 class="font-bold text-cyan-400">3. Clickable Timestamps</h4>
+                    <p class="text-slate-400">Every transcript segment receives a precise timestamp badge (e.g. <span class="text-cyan-400 font-mono">[01:24]</span>). Click any timestamp to immediately jump and play the audio from that second!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+    <script>
+        let audioInputMode = 'mic'; // 'mic' | 'file'
+        let isRecording = false;
+        let recordingStartTime = 0;
+        let recordingTimerInterval = null;
+        
+        // Web Audio State
+        let audioCtx = null;
+        let analyser = null;
+        let micStream = null;
+        let audioBuffer = null;
+        let audioSourceNode = null;
+        let isFilePlaying = false;
+        let filePlaybackStartTime = 0;
+        let filePlaybackPauseOffset = 0;
+        let filePlaybackSpeed = 1.0;
+
+        // Web Speech State
+        let speechRecognizer = null;
+
+        // Application Note Data Model
+        let transcriptSegments = [];
+        let extractedActionItems = [];
+        let extractedDecisions = [];
+        let extractedQuestions = [];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initSpeechRecognition();
+            initAudioVisualizerCanvas();
+            renderTranscriptFeed();
+            updateMarkdownStudio();
+        });
+
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                console.warn('Web Speech API not supported in this browser.');
+                return;
+            }
+
+            speechRecognizer = new SpeechRecognition();
+            speechRecognizer.continuous = true;
+            speechRecognizer.interimResults = true;
+
+            speechRecognizer.onresult = (event) => {
+                let interimTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        processSpokenSentence(transcript.trim());
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                const interimBox = document.getElementById('interimSpeechBox');
+                const interimText = document.getElementById('interimSpeechText');
+                if (interimTranscript.trim().length > 0) {
+                    interimBox.classList.remove('hidden');
+                    interimText.textContent = interimTranscript;
+                } else {
+                    interimBox.classList.add('hidden');
+                }
+            };
+
+            speechRecognizer.onerror = (err) => {
+                console.error('Speech recognition error:', err);
+            };
+
+            speechRecognizer.onend = () => {
+                if (isRecording) {
+                    try { speechRecognizer.start(); } catch (e) {}
+                }
+            };
+        }
+
+        function processSpokenSentence(rawText) {
+            if (!rawText) return;
+
+            const speaker = document.getElementById('activeSpeakerInput').value || 'Speaker 1';
+            const elapsedSeconds = Math.floor((Date.now() - recordingStartTime) / 1000);
+            
+            // Voice Command Parsing
+            let category = 'note';
+            let cleanedText = rawText;
+
+            if (/^action item:/i.test(rawText) || /^task:/i.test(rawText)) {
+                category = 'action';
+                cleanedText = rawText.replace(/^(action item|task):/i, '').trim();
+            } else if (/^decision:/i.test(rawText)) {
+                category = 'decision';
+                cleanedText = rawText.replace(/^decision:/i, '').trim();
+            } else if (/^question:/i.test(rawText)) {
+                category = 'question';
+                cleanedText = rawText.replace(/^question:/i, '').trim();
+            }
+
+            const newSegment = {
+                id: Date.now() + Math.random(),
+                timestamp: elapsedSeconds,
+                speaker: speaker,
+                text: cleanedText,
+                category: category
+            };
+
+            transcriptSegments.push(newSegment);
+            renderTranscriptFeed();
+            runLocalNLPExtraction();
+            updateMarkdownStudio();
+        }
+
+        function toggleMicrophoneRecording() {
+            if (!isRecording) {
+                startMicrophoneRecording();
+            } else {
+                stopMicrophoneRecording();
+            }
+        }
+
+        async function startMicrophoneRecording() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const source = audioCtx.createMediaStreamSource(micStream);
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+
+                isRecording = true;
+                recordingStartTime = Date.now();
+
+                // UI Updates
+                document.getElementById('recordingStatusBadge').classList.remove('hidden');
+                document.getElementById('recordingStatusBadge').classList.add('flex');
+                document.getElementById('btnRecordText').textContent = 'Stop Recording';
+                document.getElementById('btnToggleRecord').className = 'px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition flex items-center gap-2 shadow-lg shadow-rose-600/30';
+
+                // Timer Interval
+                recordingTimerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                    document.getElementById('recordingTimerText').textContent = formatTimestamp(elapsed);
+                }, 1000);
+
+                // Start Speech Recognition
+                if (speechRecognizer) {
+                    speechRecognizer.lang = document.getElementById('languageSelect').value;
+                    speechRecognizer.start();
+                }
+
+                drawLiveOscilloscope();
+                showToast('Live microphone recording started.', 'info');
+            } catch (err) {
+                showToast('Unable to access microphone: ' + err.message, 'error');
+            }
+        }
+
+        function stopMicrophoneRecording() {
+            isRecording = false;
+            if (recordingTimerInterval) clearInterval(recordingTimerInterval);
+
+            if (micStream) {
+                micStream.getTracks().forEach(track => track.stop());
+            }
+
+            if (speechRecognizer) {
+                try { speechRecognizer.stop(); } catch (e) {}
+            }
+
+            document.getElementById('recordingStatusBadge').classList.add('hidden');
+            document.getElementById('btnRecordText').textContent = 'Start Recording';
+            document.getElementById('btnToggleRecord').className = 'px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs transition flex items-center gap-2 shadow-lg shadow-violet-600/30';
+            document.getElementById('interimSpeechBox').classList.add('hidden');
+
+            showToast('Microphone recording stopped.', 'info');
+        }
+
+        function initAudioVisualizerCanvas() {
+            const canvas = document.getElementById('visualizerCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+
+            ctx.fillStyle = '#0B0F19';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawLiveOscilloscope() {
+            if (!isRecording || !analyser) return;
+
+            const canvas = document.getElementById('visualizerCanvas');
+            const ctx = canvas.getContext('2d');
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            analyser.getByteTimeDomainData(dataArray);
+
+            ctx.fillStyle = 'rgba(11, 15, 25, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#8B5CF6';
+            ctx.beginPath();
+
+            const sliceWidth = canvas.width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * canvas.height / 2;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+                x += sliceWidth;
+            }
+
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+
+            requestAnimationFrame(drawLiveOscilloscope);
+        }
+
+        function switchAudioInputMode(mode) {
+            audioInputMode = mode;
+            if (mode === 'mic') {
+                document.getElementById('micInputView').classList.remove('hidden');
+                document.getElementById('fileInputView').classList.add('hidden');
+                document.getElementById('btnModeMic').className = 'px-3.5 py-1.5 rounded-lg bg-violet-600 text-white flex items-center gap-1.5 transition';
+                document.getElementById('btnModeFile').className = 'px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition';
+            } else {
+                document.getElementById('micInputView').classList.add('hidden');
+                document.getElementById('fileInputView').classList.remove('hidden');
+                document.getElementById('btnModeMic').className = 'px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition';
+                document.getElementById('btnModeFile').className = 'px-3.5 py-1.5 rounded-lg bg-violet-600 text-white flex items-center gap-1.5 transition';
+            }
+        }
+
+        async function handleAudioFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            showToast(`Loading audio file "${file.name}"...`, 'info');
+
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                
+                document.getElementById('audioPlayerDeck').classList.remove('hidden');
+                renderFileWaveformCanvas();
+                updatePlayerTimeLabel(0, audioBuffer.duration);
+                showToast('Audio file loaded and decoded successfully!', 'success');
+            } catch (err) {
+                showToast('Failed to decode audio file: ' + err.message, 'error');
+            }
+        }
+
+        function renderFileWaveformCanvas() {
+            if (!audioBuffer) return;
+            const canvas = document.getElementById('fileWaveformCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+
+            const data = audioBuffer.getChannelData(0);
+            const step = Math.ceil(data.length / canvas.width);
+            const amp = canvas.height / 2;
+
+            ctx.fillStyle = '#0F172A';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#06B6D4';
+            for (let i = 0; i < canvas.width; i++) {
+                let min = 1.0;
+                let max = -1.0;
+                for (let j = 0; j < step; j++) {
+                    const datum = data[(i * step) + j];
+                    if (datum < min) min = datum;
+                    if (datum > max) max = datum;
+                }
+                ctx.fillRect(i, (1 + min) * amp, 1, Math.max(1, (max - min) * amp));
+            }
+        }
+
+        function toggleAudioPlayback() {
+            if (!audioBuffer) return;
+
+            if (isFilePlaying) {
+                pauseAudioPlayback();
+            } else {
+                startAudioPlayback(filePlaybackPauseOffset);
+            }
+        }
+
+        function startAudioPlayback(offset = 0) {
+            if (!audioBuffer) return;
+            if (audioSourceNode) audioSourceNode.stop();
+
+            audioSourceNode = audioCtx.createBufferSource();
+            audioSourceNode.buffer = audioBuffer;
+            audioSourceNode.playbackRate.value = filePlaybackSpeed;
+            audioSourceNode.connect(audioCtx.destination);
+
+            audioSourceNode.start(0, offset);
+            filePlaybackStartTime = audioCtx.currentTime - (offset / filePlaybackSpeed);
+            isFilePlaying = true;
+
+            document.getElementById('btnPlayPauseFile').innerHTML = `<i data-lucide="pause" class="w-4 h-4 fill-current"></i>`;
+            lucide.createIcons();
+
+            trackPlaybackProgress();
+        }
+
+        function pauseAudioPlayback() {
+            if (!isFilePlaying) return;
+            filePlaybackPauseOffset = (audioCtx.currentTime - filePlaybackStartTime) * filePlaybackSpeed;
+            if (audioSourceNode) audioSourceNode.stop();
+            isFilePlaying = false;
+
+            document.getElementById('btnPlayPauseFile').innerHTML = `<i data-lucide="play" class="w-4 h-4 fill-current"></i>`;
+            lucide.createIcons();
+        }
+
+        function trackPlaybackProgress() {
+            if (!isFilePlaying) return;
+            const currentSeconds = (audioCtx.currentTime - filePlaybackStartTime) * filePlaybackSpeed;
+            
+            if (currentSeconds >= audioBuffer.duration) {
+                pauseAudioPlayback();
+                filePlaybackPauseOffset = 0;
+                updatePlayerTimeLabel(0, audioBuffer.duration);
+                return;
+            }
+
+            updatePlayerTimeLabel(currentSeconds, audioBuffer.duration);
+            requestAnimationFrame(trackPlaybackProgress);
+        }
+
+        function seekToTime(seconds) {
+            if (!audioBuffer) return;
+            const target = Math.max(0, Math.min(seconds, audioBuffer.duration));
+            filePlaybackPauseOffset = target;
+            
+            if (isFilePlaying) {
+                startAudioPlayback(target);
+            } else {
+                updatePlayerTimeLabel(target, audioBuffer.duration);
+            }
+            showToast(`Seeked audio to ${formatTimestamp(Math.floor(target))}`, 'info');
+        }
+
+        function seekAudioFromWaveform(e) {
+            if (!audioBuffer) return;
+            const canvas = document.getElementById('fileWaveformCanvas');
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const percentage = clickX / rect.width;
+            seekToTime(percentage * audioBuffer.duration);
+        }
+
+        function seekAudioRelative(seconds) {
+            if (!audioBuffer) return;
+            const current = isFilePlaying ? (audioCtx.currentTime - filePlaybackStartTime) * filePlaybackSpeed : filePlaybackPauseOffset;
+            seekToTime(current + seconds);
+        }
+
+        function setPlaybackSpeed(speed) {
+            filePlaybackSpeed = speed;
+            if (isFilePlaying) {
+                const current = (audioCtx.currentTime - filePlaybackStartTime) * filePlaybackSpeed;
+                startAudioPlayback(current);
+            }
+        }
+
+        function updatePlayerTimeLabel(current, total) {
+            document.getElementById('playerTimeLabel').textContent = `${formatTimestamp(Math.floor(current))} / ${formatTimestamp(Math.floor(total))}`;
+        }
+
+        function renderTranscriptFeed() {
+            const container = document.getElementById('transcriptContainer');
+            document.getElementById('segmentCountBadge').textContent = `${transcriptSegments.length} segments`;
+
+            if (transcriptSegments.length === 0) {
+                container.innerHTML = `
+                    <div class="p-8 text-center border-2 border-dashed border-slate-800 rounded-xl space-y-2">
+                        <i data-lucide="mic-off" class="w-8 h-8 text-slate-600 mx-auto"></i>
+                        <p class="text-xs font-semibold text-slate-400">No transcript segments recorded yet.</p>
+                        <p class="text-[11px] text-slate-500">Start microphone recording or click "⚡ Load Demo Meeting".</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            let html = '';
+            transcriptSegments.forEach((seg, idx) => {
+                let badgeClass = 'bg-slate-800 text-slate-300';
+                if (seg.category === 'action') badgeClass = 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400';
+                if (seg.category === 'decision') badgeClass = 'bg-violet-500/10 border border-violet-500/30 text-violet-400';
+                if (seg.category === 'question') badgeClass = 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-400';
+
+                html += `
+                    <div class="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2 group hover:border-slate-700 transition">
+                        <div class="flex items-center justify-between text-xs">
+                            <div class="flex items-center space-x-2">
+                                <button onclick="seekToTime(${seg.timestamp})" class="font-mono text-[11px] px-2 py-0.5 rounded bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 border border-violet-500/30 transition flex items-center gap-1">
+                                    <i data-lucide="play-circle" class="w-3 h-3"></i> [${formatTimestamp(seg.timestamp)}]
+                                </button>
+                                <span class="font-bold text-cyan-400">${escapeHtml(seg.speaker)}</span>
+                                <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${badgeClass}">${seg.category}</span>
+                            </div>
+
+                            <button onclick="deleteTranscriptSegment(${seg.id})" class="text-slate-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+
+                        <div contenteditable="true" onblur="updateSegmentText(${seg.id}, this.innerText)" class="text-xs text-slate-200 font-sans focus:outline-none focus:bg-slate-900/80 p-1.5 rounded leading-relaxed">
+                            ${escapeHtml(seg.text)}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            lucide.createIcons();
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addEmptySegment() {
+            const speaker = document.getElementById('activeSpeakerInput').value || 'Speaker 1';
+            const elapsedSeconds = isRecording ? Math.floor((Date.now() - recordingStartTime) / 1000) : 0;
+            
+            transcriptSegments.push({
+                id: Date.now(),
+                timestamp: elapsedSeconds,
+                speaker: speaker,
+                text: 'New transcript note item...',
+                category: 'note'
+            });
+
+            renderTranscriptFeed();
+            runLocalNLPExtraction();
+            updateMarkdownStudio();
+        }
+
+        function updateSegmentText(id, newText) {
+            const seg = transcriptSegments.find(s => s.id === id);
+            if (seg) {
+                seg.text = newText;
+                runLocalNLPExtraction();
+                updateMarkdownStudio();
+            }
+        }
+
+        function deleteTranscriptSegment(id) {
+            transcriptSegments = transcriptSegments.filter(s => s.id !== id);
+            renderTranscriptFeed();
+            runLocalNLPExtraction();
+            updateMarkdownStudio();
+        }
+
+        function clearTranscriptFeed() {
+            transcriptSegments = [];
+            extractedActionItems = [];
+            extractedDecisions = [];
+            extractedQuestions = [];
+            renderTranscriptFeed();
+            runLocalNLPExtraction();
+            updateMarkdownStudio();
+            showToast('Cleared transcript feed.', 'info');
+        }
+
+        function insertManualMarker() {
+            const speaker = document.getElementById('activeSpeakerInput').value || 'Speaker 1';
+            const elapsedSeconds = isRecording ? Math.floor((Date.now() - recordingStartTime) / 1000) : 0;
+
+            transcriptSegments.push({
+                id: Date.now(),
+                timestamp: elapsedSeconds,
+                speaker: speaker,
+                text: '📌 BOOKMARK: Important discussion point highlighted here.',
+                category: 'note'
+            });
+
+            renderTranscriptFeed();
+            updateMarkdownStudio();
+            showToast('Inserted bookmark timestamp tag.', 'info');
+        }
+
+        function runLocalNLPExtraction() {
+            extractedActionItems = [];
+            extractedDecisions = [];
+            extractedQuestions = [];
+
+            transcriptSegments.forEach(seg => {
+                const text = seg.text;
+
+                // Action Items Regex Heuristics
+                if (seg.category === 'action' || /(\bneed to\b|\bshould\b|\bwill\b|\baction item\b|\btodo\b|\bassign(?:ed)? to\b|\bby\b \w+)/i.test(text)) {
+                    extractedActionItems.push({ id: seg.id, text: text, done: false, timestamp: seg.timestamp });
+                }
+
+                // Decision Regex Heuristics
+                if (seg.category === 'decision' || /(\bdecided\b|\bagreed\b|\bconcluded\b|\bapproved\b|\bfinalized\b|\bdecision\b)/i.test(text)) {
+                    extractedDecisions.push({ id: seg.id, text: text, timestamp: seg.timestamp });
+                }
+
+                // Question Regex Heuristics
+                if (seg.category === 'question' || /\?$/.test(text) || /(\bwho\b|\bwhat\b|\bwhere\b|\bwhen\b|\bwhy\b|\bhow\b|\bcan we\b|\bshould we\b)/i.test(text)) {
+                    extractedQuestions.push({ id: seg.id, text: text, timestamp: seg.timestamp });
+                }
+            });
+
+            renderNLPInsightsUI();
+        }
+
+        function renderNLPInsightsUI() {
+            // Action Items UI
+            const actionContainer = document.getElementById('actionItemsContainer');
+            document.getElementById('actionCountBadge').textContent = `${extractedActionItems.length} tasks`;
+
+            if (extractedActionItems.length === 0) {
+                actionContainer.innerHTML = `<p class="text-[11px] text-slate-500 italic">No action items detected yet.</p>`;
+            } else {
+                let html = '';
+                extractedActionItems.forEach((task, idx) => {
+                    html += `
+                        <div class="p-2 rounded-lg bg-slate-950 border border-slate-800/80 flex items-start space-x-2 text-xs">
+                            <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTaskDone(${task.id})" class="mt-0.5 rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer">
+                            <span class="${task.done ? 'line-through text-slate-500' : 'text-slate-200'} leading-snug flex-grow">${escapeHtml(task.text)}</span>
+                            <span class="font-mono text-[10px] text-slate-500">[${formatTimestamp(task.timestamp)}]</span>
+                        </div>
+                    `;
+                });
+                actionContainer.innerHTML = html;
+            }
+
+            // Decisions UI
+            const decisionContainer = document.getElementById('decisionsContainer');
+            if (extractedDecisions.length === 0) {
+                decisionContainer.innerHTML = `<p class="text-[11px] text-slate-500 italic">No decisions recorded.</p>`;
+            } else {
+                let html = '';
+                extractedDecisions.forEach(d => {
+                    html += `
+                        <div class="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-sans flex items-start gap-1.5">
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-violet-400 mt-0.5 flex-shrink-0"></i>
+                            <span class="leading-snug">${escapeHtml(d.text)}</span>
+                        </div>
+                    `;
+                });
+                decisionContainer.innerHTML = html;
+            }
+
+            // Questions UI
+            const questionContainer = document.getElementById('questionsContainer');
+            if (extractedQuestions.length === 0) {
+                questionContainer.innerHTML = `<p class="text-[11px] text-slate-500 italic">No open questions detected.</p>`;
+            } else {
+                let html = '';
+                extractedQuestions.forEach(q => {
+                    html += `
+                        <div class="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-sans flex items-start gap-1.5">
+                            <i data-lucide="help-circle" class="w-3.5 h-3.5 text-cyan-400 mt-0.5 flex-shrink-0"></i>
+                            <span class="leading-snug">${escapeHtml(q.text)}</span>
+                        </div>
+                    `;
+                });
+                questionContainer.innerHTML = html;
+            }
+
+            lucide.createIcons();
+        }
+
+        function toggleTaskDone(id) {
+            const task = extractedActionItems.find(t => t.id === id);
+            if (task) {
+                task.done = !task.done;
+                renderNLPInsightsUI();
+                updateMarkdownStudio();
+            }
+        }
+
+        function updateMarkdownStudio() {
+            const nowStr = new Date().toISOString().split('T')[0];
+            
+            let md = `# Meeting Notes & Action Items\n`;
+            md += `**Date:** ${nowStr}  \n`;
+            md += `**Total Segments:** ${transcriptSegments.length}  \n\n`;
+
+            md += `---\n\n`;
+            md += `## 📋 Action Items & Tasks\n`;
+            if (extractedActionItems.length === 0) {
+                md += `*No action items recorded.*\n\n`;
+            } else {
+                extractedActionItems.forEach(t => {
+                    md += `- [${t.done ? 'x' : ' '}] ${t.text} \`[${formatTimestamp(t.timestamp)}]\`\n`;
+                });
+                md += `\n`;
+            }
+
+            md += `## 💡 Key Decisions\n`;
+            if (extractedDecisions.length === 0) {
+                md += `*No decisions recorded.*\n\n`;
+            } else {
+                extractedDecisions.forEach(d => {
+                    md += `- **Decision:** ${d.text} \`[${formatTimestamp(d.timestamp)}]\`\n`;
+                });
+                md += `\n`;
+            }
+
+            md += `## 📝 Full Timestamped Transcript\n`;
+            if (transcriptSegments.length === 0) {
+                md += `*Transcript feed is empty.*\n`;
+            } else {
+                transcriptSegments.forEach(seg => {
+                    md += `### [${formatTimestamp(seg.timestamp)}] ${seg.speaker}\n${seg.text}\n\n`;
+                });
+            }
+
+            // Update Raw Text Area
+            document.getElementById('rawMarkdownTextArea').value = md;
+
+            // Word and Char Counters
+            const words = md.trim() ? md.trim().split(/\s+/).length : 0;
+            document.getElementById('markdownStatsLabel').textContent = `${words} words • ${md.length} chars`;
+
+            // Update Rendered HTML Preview
+            renderFormattedMarkdownHTML(md);
+        }
+
+        function renderFormattedMarkdownHTML(mdText) {
+            const box = document.getElementById('renderedMarkdownBox');
+            
+            let html = mdText
+                .replace(/^# (.*$)/gim, '<h1 class="text-lg font-bold text-violet-300 border-b border-slate-800 pb-1 mb-2">$1</h1>')
+                .replace(/^## (.*$)/gim, '<h2 class="text-sm font-bold text-cyan-300 mt-4 mb-2">$1</h2>')
+                .replace(/^### (.*$)/gim, '<h3 class="text-xs font-semibold text-slate-300 mt-2 mb-1">$1</h3>')
+                .replace(/^\- \[x\] (.*$)/gim, '<div class="flex items-center gap-2 text-emerald-400"><i data-lucide="check-square" class="w-3.5 h-3.5"></i> <span class="line-through text-slate-500">$1</span></div>')
+                .replace(/^\- \[ \] (.*$)/gim, '<div class="flex items-center gap-2 text-slate-200"><i data-lucide="square" class="w-3.5 h-3.5 text-slate-500"></i> <span>$1</span></div>')
+                .replace(/\`\[(.*?)\]\`/gim, '<span class="font-mono text-[10px] text-violet-400 bg-violet-950/60 px-1.5 py-0.5 rounded border border-violet-800/50">$1</span>')
+                .replace(/\n\n/gim, '<br>');
+
+            box.innerHTML = html;
+            lucide.createIcons();
+        }
+
+        function manualMarkdownEdit() {
+            const md = document.getElementById('rawMarkdownTextArea').value;
+            renderFormattedMarkdownHTML(md);
+            const words = md.trim() ? md.trim().split(/\s+/).length : 0;
+            document.getElementById('markdownStatsLabel').textContent = `${words} words • ${md.length} chars`;
+        }
+
+        function loadDemoMeeting() {
+            transcriptSegments = [
+                { id: 1, timestamp: 4, speaker: 'Alex (Tech Lead)', text: 'Welcome everyone. Let\'s review our sprint goals and release pipeline.', category: 'note' },
+                { id: 2, timestamp: 18, speaker: 'Sarah (Frontend)', text: 'Action item: Sarah to optimize the bundle size and deploy web assembly module by Thursday.', category: 'action' },
+                { id: 3, timestamp: 35, speaker: 'David (Backend)', text: 'Decision: We approved the migration to PostgreSQL for lower query latency.', category: 'decision' },
+                { id: 4, timestamp: 52, speaker: 'Alex (Tech Lead)', text: 'Question: Should we enable offline client-side caching for the web editor?', category: 'question' },
+                { id: 5, timestamp: 74, speaker: 'Sarah (Frontend)', text: 'Action item: Alex to prepare the security audit documentation for client approval.', category: 'action' }
+            ];
+
+            renderTranscriptFeed();
+            runLocalNLPExtraction();
+            updateMarkdownStudio();
+            showToast('Synthesized demo engineering meeting notes.', 'success');
+        }
+
+        function switchRightTab(tabId) {
+            document.querySelectorAll('#tab-insights, #tab-preview, #tab-raw').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+            document.getElementById(tabId).classList.remove('hidden');
+            document.getElementById(`right-${tabId}`).classList.add('active');
+        }
+
+        function exportAsMarkdown() {
+            const text = document.getElementById('rawMarkdownTextArea').value;
+            const blob = new Blob([text], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `AudioScribe_Notes_${new Date().toISOString().split('T')[0]}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Downloaded Markdown document.', 'success');
+        }
+
+        function copyMarkdownToClipboard() {
+            const text = document.getElementById('rawMarkdownTextArea').value;
+            copyToClipboard(text);
+        }
+
+        function exportSessionJSON() {
+            const sessionData = {
+                transcriptSegments,
+                extractedActionItems,
+                extractedDecisions,
+                extractedQuestions,
+                exportDate: new Date().toISOString()
+            };
+            const blob = new Blob([JSON.stringify(sessionData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `AudioScribe_Session_${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Exported backup session JSON.', 'success');
+        }
+
+        /* Helpers */
+        function openGuideModal() { document.getElementById('guideModal').classList.remove('hidden'); }
+        function closeGuideModal() { document.getElementById('guideModal').classList.add('hidden'); }
+
+        function resetAppToDefault() {
+            clearTranscriptFeed();
+            showToast('Reset application state.', 'info');
+        }
+
+        function formatTimestamp(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        function copyToClipboard(text) {
+            const listener = (e) => {
+                e.clipboardData.setData('text/plain', text);
+                e.preventDefault();
+            };
+            document.addEventListener('copy', listener);
+            document.execCommand('copy');
+            document.removeEventListener('copy', listener);
+            showToast('Copied to clipboard!', 'success');
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            let bg = 'bg-slate-900 border-slate-700 text-slate-200';
+            if (type === 'success') bg = 'bg-emerald-950 border-emerald-500/40 text-emerald-200';
+            if (type === 'error') bg = 'bg-rose-950 border-rose-500/40 text-rose-200';
+
+            toast.className = `p-3 px-4 rounded-xl border ${bg} shadow-xl text-xs font-medium backdrop-blur-md pointer-events-auto transition duration-300`;
+            toast.textContent = message;
+
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.add('opacity-0'); setTimeout(() => toast.remove(), 300); }, 3000);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]);
+        }
+    </script>
+</body>
+</html>
